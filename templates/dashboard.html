@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard - FoodNShop{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-content">
+  <div class="welcome-banner">
+    <div>
+      <h2>नमस्कार! 👋</h2>
+      <p>{{ session.business_name }}</p>
+    </div>
+    <div class="biz-tag">{{ '🍽️ Restaurant' if session.user_type == 'restaurant' else '🛒 Daily Shop' }}</div>
+  </div>
+
+  <div class="stats-grid">
+    <div class="stat-card stat-blue">
+      <div class="stat-icon">📦</div>
+      <div class="stat-num">{{ stock_count }}</div>
+      <div class="stat-label">Stock Items</div>
+    </div>
+    <div class="stat-card stat-green">
+      <div class="stat-icon">💰</div>
+      <div class="stat-num">₹{{ "%.0f"|format(revenue_today) }}</div>
+      <div class="stat-label">आजची कमाई</div>
+    </div>
+    <div class="stat-card stat-orange">
+      <div class="stat-icon">🧾</div>
+      <div class="stat-num">{{ pending_bills }}</div>
+      <div class="stat-label">Pending Bills</div>
+    </div>
+    <div class="stat-card stat-purple">
+      <div class="stat-icon">📋</div>
+      <div class="stat-num">{{ menu_count }}</div>
+      <div class="stat-label">Menu Items</div>
+    </div>
+  </div>
+
+  {% if low_stock %}
+  <div class="section-card alert-card">
+    <div class="section-header">
+      <h3>⚠️ कमी Stock</h3>
+      <a href="{{ url_for('stock') }}" class="link-btn">सर्व पहा</a>
+    </div>
+    {% for item in low_stock[:5] %}
+    <div class="alert-item">
+      <span class="alert-name">{{ item.name }}</span>
+      <span class="alert-qty low">{{ item.quantity }} {{ item.unit }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if user.user_type == 'restaurant' and tables %}
+  <div class="section-card">
+    <div class="section-header">
+      <h3>🪑 Tables Status</h3>
+      <a href="{{ url_for('tables') }}" class="link-btn">Manage</a>
+    </div>
+    <div class="table-grid">
+      {% for t in tables %}
+      <div class="table-chip status-{{ t.status }}">
+        <strong>T{{ t.table_number }}</strong>
+        <small>{{ t.status|capitalize }}</small>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="quick-actions">
+    <h3>Quick Actions</h3>
+    <div class="action-grid">
+      <a href="{{ url_for('billing') }}" class="action-btn action-bill">
+        <span>🧾</span>
+        <strong>नवीन Bill</strong>
+      </a>
+      <a href="{{ url_for('stock') }}" class="action-btn action-stock">
+        <span>📦</span>
+        <strong>Stock Update</strong>
+      </a>
+      <a href="{{ url_for('menu') }}" class="action-btn action-menu">
+        <span>📋</span>
+        <strong>Menu Edit</strong>
+      </a>
+      <a href="{{ url_for('billing_history') }}" class="action-btn action-hist">
+        <span>📊</span>
+        <strong>Reports</strong>
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}

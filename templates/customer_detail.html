@@ -1,0 +1,209 @@
+{% extends 'base.html' %}
+{% block title %}{{ customer.name }} - FoodNShop{% endblock %}
+{% block page_title %}👤 {{ customer.name }}{% endblock %}
+
+{% block content %}
+<div class="page-content">
+
+  <!-- Customer Info Card -->
+  <div class="section-card customer-info-card">
+    <div class="cic-top">
+      <div class="cic-avatar">{{ customer.name[0].upper() }}</div>
+      <div class="cic-details">
+        <div class="cic-name">{{ customer.name }}</div>
+        {% if customer.phone %}
+        <a href="tel:{{ customer.phone }}" class="cic-phone">📞 {{ customer.phone }}</a>
+        {% endif %}
+        {% if customer.address %}
+        <div class="cic-addr">📍 {{ customer.address }}</div>
+        {% endif %}
+        {% if customer.notes %}
+        <div class="cic-notes">📝 {{ customer.notes }}</div>
+        {% endif %}
+      </div>
+      <button class="icon-btn" onclick="showEditCustomer()">✏️</button>
+    </div>
+
+    <!-- Balance Box -->
+    <div class="balance-box {% if balance > 0 %}bal-udhari{% elif balance < 0 %}bal-advance{% else %}bal-clear{% endif %}">
+      {% if balance > 0 %}
+        <div class="bal-label">उधारी बाकी (देणे आहे)</div>
+        <div class="bal-amount">₹{{ "%.0f"|format(balance) }}</div>
+      {% elif balance < 0 %}
+        <div class="bal-label">Advance (जास्त दिले)</div>
+        <div class="bal-amount">₹{{ "%.0f"|format(balance|abs) }}</div>
+      {% else %}
+        <div class="bal-label">✅ सर्व Clear आहे</div>
+        <div class="bal-amount">₹0</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Quick Actions -->
+  <div class="udhari-quick-btns">
+    <button class="btn btn-danger btn-lg" onclick="showAddEntry('debit')">
+      📤 उधारी दिली
+    </button>
+    <button class="btn btn-success btn-lg" onclick="showAddEntry('credit')">
+      📥 पैसे मिळाले
+    </button>
+  </div>
+
+  <!-- Udhari Ledger -->
+  <div class="section-card">
+    <div class="section-header">
+      <h3>📒 उधारी खातेवही</h3>
+      <span class="entry-count">{{ entries|length }} नोंदी</span>
+    </div>
+
+    {% if entries %}
+    <div class="ledger-list" id="ledgerList">
+      {% for e in entries %}
+      <div class="ledger-entry {% if e.entry_type == 'debit' %}le-debit{% else %}le-credit{% endif %}">
+        <div class="le-icon">{% if e.entry_type == 'debit' %}📤{% else %}📥{% endif %}</div>
+        <div class="le-info">
+          <div class="le-desc">
+            {% if e.description %}{{ e.description }}{% elif e.entry_type == 'debit' %}उधारी दिली{% else %}पैसे मिळाले{% endif %}
+            {% if e.bill_id %}<a href="/billing/bill/{{ e.bill_id }}" class="le-bill-link">🧾 Bill #{{ e.bill_id }}</a>{% endif %}
+          </div>
+          <div class="le-date">{{ e.created_at.strftime('%d/%m/%Y %I:%M %p') }}</div>
+        </div>
+        <div class="le-amount {% if e.entry_type == 'debit' %}debit{% else %}credit{% endif %}">
+          {% if e.entry_type == 'debit' %}-{% else %}+{% endif %}₹{{ "%.0f"|format(e.amount) }}
+        </div>
+        <button class="icon-btn danger sm" onclick="deleteEntry({{ e.id }})" title="Delete">✕</button>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+      अजून कोणतीही उधारी नोंद नाही.<br>
+      <small>वर "उधारी दिली" किंवा "पैसे मिळाले" दाबा</small>
+    </div>
+    {% endif %}
+  </div>
+
+  <div style="text-align:center;margin-top:1rem">
+    <a href="/customers" class="btn btn-outline">← सर्व Customers</a>
+  </div>
+</div>
+
+<!-- Add Entry Modal -->
+<div id="addEntryModal" class="modal-overlay" style="display:none" onclick="closeEntryModal(event)">
+  <div class="modal-box show">
+    <h3 id="entryModalTitle">उधारी नोंद</h3>
+    <input type="hidden" id="entryType" value="debit">
+    <div class="form-group">
+      <label>रक्कम (₹) <span class="req">*</span></label>
+      <input type="number" id="entryAmount" placeholder="0" min="1" class="form-control big-input">
+    </div>
+    <div class="form-group">
+      <label>📝 नोंद / कारण</label>
+      <input type="text" id="entryDesc" placeholder="उदा. दूध, किराणा, बिल..." class="form-control">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeEntryModal()">रद्द करा</button>
+      <button class="btn btn-success" id="entrySubmitBtn" onclick="saveEntry()">✅ Save करा</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Customer Modal -->
+<div id="editCustModal" class="modal-overlay" style="display:none" onclick="closeEditModal(event)">
+  <div class="modal-box show">
+    <h3>✏️ Customer Edit करा</h3>
+    <div class="form-group">
+      <label>नाव</label>
+      <input type="text" id="editName" value="{{ customer.name }}" class="form-control">
+    </div>
+    <div class="form-group">
+      <label>📞 मोबाईल</label>
+      <input type="tel" id="editPhone" value="{{ customer.phone or '' }}" class="form-control">
+    </div>
+    <div class="form-group">
+      <label>📍 पत्ता</label>
+      <input type="text" id="editAddr" value="{{ customer.address or '' }}" class="form-control">
+    </div>
+    <div class="form-group">
+      <label>📝 Notes</label>
+      <input type="text" id="editNotes" value="{{ customer.notes or '' }}" class="form-control">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeEditModal()">रद्द करा</button>
+      <button class="btn btn-success" onclick="saveEdit()">✅ Update करा</button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const CUST_ID = {{ customer.id }};
+
+function showAddEntry(type) {
+  document.getElementById('entryType').value = type;
+  document.getElementById('addEntryModal').style.display = 'flex';
+  const isDebit = type === 'debit';
+  document.getElementById('entryModalTitle').textContent = isDebit ? '📤 उधारी दिली' : '📥 पैसे मिळाले';
+  document.getElementById('entrySubmitBtn').className = isDebit ? 'btn btn-danger' : 'btn btn-success';
+  document.getElementById('entryAmount').value = '';
+  document.getElementById('entryDesc').value = '';
+  setTimeout(() => document.getElementById('entryAmount').focus(), 100);
+}
+
+function closeEntryModal(e) {
+  if (!e || e.target === document.getElementById('addEntryModal')) {
+    document.getElementById('addEntryModal').style.display = 'none';
+  }
+}
+
+async function saveEntry() {
+  const amount = parseFloat(document.getElementById('entryAmount').value);
+  if (!amount || amount <= 0) { alert('रक्कम टाका!'); return; }
+  const data = {
+    customer_id: CUST_ID,
+    amount: amount,
+    entry_type: document.getElementById('entryType').value,
+    description: document.getElementById('entryDesc').value.trim()
+  };
+  const res = await fetch('/udhari/add', {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)
+  });
+  const result = await res.json();
+  if (result.success) { location.reload(); }
+}
+
+async function deleteEntry(id) {
+  if (!confirm('ही नोंद delete करायची?')) return;
+  const res = await fetch('/udhari/delete/' + id, { method: 'POST' });
+  const result = await res.json();
+  if (result.success) { location.reload(); }
+}
+
+function showEditCustomer() {
+  document.getElementById('editCustModal').style.display = 'flex';
+}
+
+function closeEditModal(e) {
+  if (!e || e.target === document.getElementById('editCustModal')) {
+    document.getElementById('editCustModal').style.display = 'none';
+  }
+}
+
+async function saveEdit() {
+  const data = {
+    name: document.getElementById('editName').value.trim(),
+    phone: document.getElementById('editPhone').value.trim(),
+    address: document.getElementById('editAddr').value.trim(),
+    notes: document.getElementById('editNotes').value.trim()
+  };
+  if (!data.name) { alert('नाव आवश्यक आहे!'); return; }
+  const res = await fetch('/customers/edit/' + CUST_ID, {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)
+  });
+  const result = await res.json();
+  if (result.success) { location.reload(); }
+}
+</script>
+{% endblock %}

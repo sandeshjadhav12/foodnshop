@@ -1,0 +1,220 @@
+{% extends 'base.html' %}
+{% block title %}Billing - FoodNShop{% endblock %}
+{% block page_title %}🧾 Billing{% endblock %}
+
+{% block content %}
+<div class="page-content">
+
+  <!-- Pending Bills -->
+  {% if pending_bills %}
+  <div class="section-card" style="margin-bottom:1rem">
+    <div class="section-header">
+      <h3>⏳ Pending Bills ({{ pending_bills|length }})</h3>
+    </div>
+    {% for b in pending_bills %}
+    <div class="pending-bill-row" onclick="location.href='/billing/bill/{{ b.id }}'">
+      <div>
+        <strong>{{ b.customer_name }}</strong>
+        {% if b.table_id %}<span class="table-badge">Table</span>{% endif %}
+        <div class="bill-time">{{ b.created_at.strftime('%d/%m %I:%M %p') }}</div>
+      </div>
+      <div class="bill-amount">₹{{ "%.0f"|format(b.total) }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- New Bill Form -->
+  <div class="section-card">
+    <h3>🧾 नवीन Bill बनवा</h3>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Customer चे नाव</label>
+        <input type="text" id="custName" placeholder="Walk-in Customer">
+      </div>
+      {% if session.user_type == 'restaurant' %}
+      <div class="form-group">
+        <label>Table (Optional)</label>
+        <select id="tableSelect">
+          <option value="">-- Table निवडा --</option>
+          {% for t in tables %}
+          <option value="{{ t.id }}">Table {{ t.table_number }} ({{ t.status }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Menu Items -->
+    <div class="menu-cats" id="menuCatTabs"></div>
+    <div id="menuItemsGrid" class="menu-grid"></div>
+
+    <!-- Bill Preview -->
+    <div class="bill-preview" id="billPreview" style="display:none">
+      <div class="bill-preview-header">📋 Bill Preview</div>
+      <div id="billLines"></div>
+      <div class="bill-summary-box">
+        <div class="bill-subtotal-row">
+          <span>Subtotal</span>
+          <span id="billSubtotal">₹0</span>
+        </div>
+        <div class="bill-tax-row">
+          <span>GST / Tax
+            <select id="taxRate" onchange="renderCart()" style="margin-left:6px;padding:2px 6px;border-radius:6px;border:1px solid #ccc;font-size:0.85rem">
+              <option value="0">0%</option>
+              <option value="5">5%</option>
+              <option value="12">12%</option>
+              <option value="18" selected>18%</option>
+              <option value="28">28%</option>
+            </select>
+          </span>
+          <span id="billTaxAmt">₹0</span>
+        </div>
+        <div class="bill-discount-row">
+          <span>Discount (₹)</span>
+          <input type="number" id="discountAmt" value="0" min="0" step="1" oninput="renderCart()"
+            style="width:80px;text-align:right;padding:2px 6px;border-radius:6px;border:1px solid #ccc;font-size:0.9rem">
+        </div>
+        <div class="bill-total-row">
+          <span>एकूण (Total)</span>
+          <span id="billTotal">₹0</span>
+        </div>
+      </div>
+      <div class="bill-actions">
+        <button class="btn btn-outline" onclick="clearBill()">🗑️ Clear</button>
+        <button class="btn btn-success" onclick="createBill()">✅ Bill Save करा</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let menuItems = [];
+let billCart = [];
+let activeCat = 'all';
+
+const CAT_LABELS = {
+  all:'All', dairy:'🥛 Dairy', grains:'🌾 Grains', pulses:'🫘 Pulses',
+  spices:'🌶️ Spices', oil:'🫒 Oil', other:'📦 Other',
+  liquor:'🥃 Liquor', beer:'🍺 Beer', mocktail:'🧃 Mocktail',
+  cocktail:'🍹 Cocktail', food:'🍛 Food', soft_drink:'🥤 Soft Drink'
+};
+
+async function loadMenu() {
+  const res = await fetch('/menu/data');
+  menuItems = await res.json();
+  renderCats();
+  renderItems();
+}
+
+function renderCats() {
+  const cats = ['all', ...new Set(menuItems.map(i => i.category))];
+  document.getElementById('menuCatTabs').innerHTML = cats.map(c =>
+    `<button class="tab-btn ${c===activeCat?'active':''}" onclick="setMenuCat('${c}')">${CAT_LABELS[c]||c}</button>`
+  ).join('');
+}
+
+function setMenuCat(c) {
+  activeCat = c;
+  renderCats();
+  renderItems();
+}
+
+function renderItems() {
+  let items = menuItems.filter(i => activeCat === 'all' || i.category === activeCat);
+  if (!items.length) {
+    document.getElementById('menuItemsGrid').innerHTML = '<div class="empty-state">Menu items नाहीत. Menu मध्ये items add करा.</div>';
+    return;
+  }
+  document.getElementById('menuItemsGrid').innerHTML = items.map(i => `
+    <div class="menu-item-btn" onclick="addToCart(${i.id})">
+      <div class="mi-name">${i.name}</div>
+      <div class="mi-price">₹${i.price}<small>/${i.unit}</small></div>
+    </div>
+  `).join('');
+}
+
+function addToCart(id) {
+  const item = menuItems.find(i => i.id === id);
+  const existing = billCart.find(c => c.id === id);
+  if (existing) {
+    existing.qty += 1;
+  } else {
+    billCart.push({id: item.id, name: item.name, price: item.price, unit: item.unit, qty: 1});
+  }
+  renderCart();
+}
+
+function renderCart() {
+  if (!billCart.length) {
+    document.getElementById('billPreview').style.display = 'none';
+    return;
+  }
+  document.getElementById('billPreview').style.display = 'block';
+  let subtotal = 0;
+  document.getElementById('billLines').innerHTML = billCart.map((c, idx) => {
+    const sub = c.qty * c.price;
+    subtotal += sub;
+    return `
+    <div class="bill-line">
+      <div class="bl-name">${c.name}</div>
+      <div class="bl-controls">
+        <button class="qty-btn" onclick="changeQty(${idx}, -1)">−</button>
+        <span class="qty-val">${c.qty}</span>
+        <button class="qty-btn" onclick="changeQty(${idx}, 1)">+</button>
+        <span class="bl-unit">${c.unit}</span>
+        <span class="bl-sub">₹${sub.toFixed(0)}</span>
+        <button class="icon-btn danger sm" onclick="removeItem(${idx})">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+  const taxRate = parseFloat(document.getElementById('taxRate').value) || 0;
+  const discount = parseFloat(document.getElementById('discountAmt').value) || 0;
+  const taxAmt = subtotal * taxRate / 100;
+  const total = Math.max(0, subtotal + taxAmt - discount);
+  document.getElementById('billSubtotal').textContent = '₹' + subtotal.toFixed(0);
+  document.getElementById('billTaxAmt').textContent = '₹' + taxAmt.toFixed(0);
+  document.getElementById('billTotal').textContent = '₹' + total.toFixed(0);
+}
+
+function changeQty(idx, delta) {
+  billCart[idx].qty = Math.max(0.5, billCart[idx].qty + delta);
+  renderCart();
+}
+
+function removeItem(idx) {
+  billCart.splice(idx, 1);
+  renderCart();
+}
+
+function clearBill() {
+  billCart = [];
+  renderCart();
+}
+
+async function createBill() {
+  if (!billCart.length) { alert('Bill mein koi item nahi!'); return; }
+  const taxRate = parseFloat(document.getElementById('taxRate').value) || 0;
+  const discount = parseFloat(document.getElementById('discountAmt').value) || 0;
+  const data = {
+    customer_name: document.getElementById('custName').value || 'Walk-in Customer',
+    table_id: document.getElementById('tableSelect') ? document.getElementById('tableSelect').value : null,
+    tax_rate: taxRate,
+    discount: discount,
+    items: billCart.map(c => ({name: c.name, quantity: c.qty, unit: c.unit, price: c.price}))
+  };
+  const res = await fetch('/billing/create', {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)
+  });
+  const result = await res.json();
+  if (result.success) {
+    window.location.href = '/billing/bill/' + result.bill_id;
+  }
+}
+
+loadMenu();
+</script>
+{% endblock %}

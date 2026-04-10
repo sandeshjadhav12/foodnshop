@@ -1,0 +1,167 @@
+{% extends 'base.html' %}
+{% block title %}Bill #{{ bill.id }} - FoodNShop{% endblock %}
+{% block page_title %}🧾 Bill #{{ bill.id }}{% endblock %}
+
+{% block content %}
+<div class="page-content">
+  <div class="receipt-card" id="printArea">
+
+    <!-- Print Header (only visible when printing) -->
+    <div class="print-only receipt-print-top">
+      <div style="font-size:1.3rem;font-weight:800;letter-spacing:1px">🍽️ FoodNShop</div>
+    </div>
+
+    <div class="receipt-header">
+      <div class="receipt-biz">{{ session.business_name }}</div>
+      <div class="receipt-date">📅 {{ bill.created_at.strftime('%d/%m/%Y %I:%M %p') }}</div>
+      <div class="receipt-billno">Bill No: <strong>#{{ bill.id }}</strong></div>
+      {% if table %}<div class="receipt-table">🪑 Table: {{ table.table_number }}</div>{% endif %}
+      <div class="receipt-customer">👤 {{ bill.customer_name }}</div>
+    </div>
+
+    <div class="receipt-divider">- - - - - - - - - - - - - - - -</div>
+
+    <div class="receipt-items-header">
+      <span>Item</span><span>Qty</span><span>Rate</span><span>Amt</span>
+    </div>
+
+    <div class="receipt-items">
+      {% for item in items %}
+      <div class="receipt-line">
+        <div class="rl-name">{{ item.item_name }}</div>
+        <div class="rl-qty">{{ item.quantity|int if item.quantity == item.quantity|int else item.quantity }} {{ item.unit }}</div>
+        <div class="rl-rate">₹{{ "%.0f"|format(item.price) }}</div>
+        <div class="rl-sub">₹{{ "%.0f"|format(item.subtotal) }}</div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="receipt-divider">- - - - - - - - - - - - - - - -</div>
+
+    <!-- Tax Breakdown -->
+    <div class="receipt-breakdown">
+      <div class="rb-row">
+        <span>Subtotal</span>
+        <span>₹{{ "%.0f"|format(bill.subtotal if bill.subtotal else bill.total) }}</span>
+      </div>
+      {% if bill.tax_rate and bill.tax_rate > 0 %}
+      <div class="rb-row">
+        <span>GST ({{ "%.0f"|format(bill.tax_rate) }}%)</span>
+        <span>₹{{ "%.0f"|format(bill.tax_amount) }}</span>
+      </div>
+      {% endif %}
+      {% if bill.discount and bill.discount > 0 %}
+      <div class="rb-row rb-discount">
+        <span>Discount</span>
+        <span>- ₹{{ "%.0f"|format(bill.discount) }}</span>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="receipt-total">
+      <span>एकूण (TOTAL)</span>
+      <strong>₹{{ "%.0f"|format(bill.total) }}</strong>
+    </div>
+
+    <div class="receipt-status {{ bill.status }}">
+      {{ '✅ PAID' if bill.status == 'paid' else '⏳ PENDING' }}
+    </div>
+
+    {% if bill.status == 'pending' %}
+    <div class="receipt-actions no-print">
+      <button class="btn btn-success btn-full" onclick="payBill({{ bill.id }})">
+        ✅ Payment Received - ₹{{ "%.0f"|format(bill.total) }}
+      </button>
+    </div>
+    {% else %}
+    <div class="receipt-paid-info">
+      Paid on: {{ bill.paid_at.strftime('%d/%m/%Y %I:%M %p') }}
+    </div>
+    {% endif %}
+
+    <div class="receipt-print-footer print-only">
+      <div>आपले आभारी आहोत! Thank you!</div>
+      <div style="font-size:0.75rem;margin-top:4px">Powered by FoodNShop</div>
+    </div>
+  </div>
+
+  <div class="receipt-footer-actions no-print">
+    <a href="{{ url_for('billing') }}" class="btn btn-outline">← नवीन Bill</a>
+    <button class="btn btn-outline" onclick="printBill()">🖨️ Print करा</button>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function payBill(id) {
+  if (!confirm('Payment receive झाली का?')) return;
+  await fetch(`/billing/pay/${id}`, {method: 'POST'});
+  location.reload();
+}
+
+function printBill() {
+  window.print();
+}
+</script>
+
+<style>
+@media print {
+  .top-bar, .sidebar, .sidebar-overlay, .bottom-nav,
+  .no-print, .receipt-footer-actions { display: none !important; }
+  .main-content { margin: 0 !important; padding: 0 !important; }
+  .page-content { padding: 0 !important; }
+  .receipt-card {
+    box-shadow: none !important;
+    border: none !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 8px !important;
+    font-size: 12px !important;
+  }
+  .print-only { display: block !important; }
+  body { background: white !important; }
+}
+.print-only { display: none; }
+.receipt-items-header {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #888;
+  padding: 4px 0;
+  border-bottom: 1px dashed #ddd;
+  margin-bottom: 6px;
+}
+.receipt-line {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  padding: 5px 0;
+  border-bottom: 1px dotted #eee;
+  font-size: 0.9rem;
+  align-items: center;
+}
+.rl-name { font-weight: 600; }
+.rl-sub { font-weight: 700; text-align: right; }
+.rl-rate { text-align: right; color: #666; }
+.rl-qty { color: #555; }
+.receipt-breakdown {
+  margin: 8px 0 4px;
+}
+.rb-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 0;
+  font-size: 0.88rem;
+  color: #555;
+}
+.rb-discount { color: #e74c3c; }
+.receipt-billno {
+  font-size: 0.85rem;
+  color: #888;
+  margin-top: 2px;
+}
+.receipt-print-top { text-align: center; margin-bottom: 8px; }
+.receipt-print-footer { text-align: center; margin-top: 12px; color: #777; font-size: 0.85rem; }
+</style>
+{% endblock %}
