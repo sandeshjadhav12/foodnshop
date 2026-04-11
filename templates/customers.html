@@ -1,0 +1,167 @@
+{% extends 'base.html' %}
+{% block title %}Customers - FoodNShop{% endblock %}
+{% block page_title %}👥 Customers & Udhari{% endblock %}
+
+{% block content %}
+<div class="page-content">
+
+  <!-- Udhari Summary Banner -->
+  <div id="udhariSummaryBanner" class="udhari-summary-banner" style="display:none">
+    <div class="usb-left">
+      <span class="usb-icon">⚠️</span>
+      <div>
+        <div class="usb-label">Total Udhari Pending</div>
+        <div class="usb-amount" id="totalDue">₹0</div>
+      </div>
+    </div>
+    <a href="#" onclick="filterUdhari()" class="usb-link">Show Udhari Only</a>
+  </div>
+
+  <div class="section-card">
+    <div class="section-header">
+      <h3>👥 Customers</h3>
+      <button class="btn btn-primary btn-sm" onclick="showAddCustomer()">+ Add Customer</button>
+    </div>
+
+    <div class="search-bar-wrap">
+      <input type="text" id="searchCust" placeholder="🔍 Search by name or number..." oninput="filterCustomers()" class="search-input">
+    </div>
+
+    <div id="customerList" class="customer-list">
+      {% for cd in cust_data %}
+      {% set c = cd.customer %}
+      {% set bal = cd.balance %}
+      <div class="customer-card {% if bal > 0 %}has-udhari{% elif bal < 0 %}has-advance{% endif %}"
+           data-name="{{ c.name|lower }}" data-phone="{{ c.phone or '' }}" data-balance="{{ bal }}">
+        <div class="cc-main" onclick="location.href='/customers/{{ c.id }}'">
+          <div class="cc-avatar">{{ c.name[0].upper() }}</div>
+          <div class="cc-info">
+            <div class="cc-name">{{ c.name }}</div>
+            {% if c.phone %}<div class="cc-phone">📞 {{ c.phone }}</div>{% endif %}
+            {% if c.address %}<div class="cc-addr">📍 {{ c.address }}</div>{% endif %}
+          </div>
+          <div class="cc-bal-wrap">
+            {% if bal > 0 %}
+              <div class="cc-bal udhari">Udhari</div>
+              <div class="cc-bal-amt udhari">₹{{ "%.0f"|format(bal) }}</div>
+            {% elif bal < 0 %}
+              <div class="cc-bal advance">Advance</div>
+              <div class="cc-bal-amt advance">₹{{ "%.0f"|format(bal|abs) }}</div>
+            {% else %}
+              <div class="cc-bal clear">Clear ✓</div>
+            {% endif %}
+          </div>
+        </div>
+        <div class="cc-actions">
+          <a href="/customers/{{ c.id }}" class="cc-btn">📋 Details</a>
+          <a href="tel:{{ c.phone }}" class="cc-btn {% if not c.phone %}disabled{% endif %}">📞 Call</a>
+          <button class="cc-btn danger" onclick="deleteCustomer({{ c.id }}, '{{ c.name }}')">🗑️</button>
+        </div>
+      </div>
+      {% else %}
+      <div class="empty-state" id="emptyState">
+        No customers yet.<br>
+        <small>Click "+ Add Customer" to get started</small>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- Add Customer Sheet (using sheet-modal pattern, not modal-overlay) -->
+<div id="addCustModal" class="sheet-modal" style="display:none">
+  <div class="sheet-handle"></div>
+  <h3>👤 Add New Customer</h3>
+  <div class="form-group">
+    <label>Name <span class="req">*</span></label>
+    <input type="text" id="newCustName" placeholder="Customer name">
+  </div>
+  <div class="form-group">
+    <label>📞 Mobile Number</label>
+    <input type="tel" id="newCustPhone" placeholder="9876543210">
+  </div>
+  <div class="form-group">
+    <label>📍 Address</label>
+    <input type="text" id="newCustAddr" placeholder="Village / Area">
+  </div>
+  <div class="form-group">
+    <label>📝 Notes</label>
+    <input type="text" id="newCustNotes" placeholder="Any note...">
+  </div>
+  <div class="sheet-actions">
+    <button class="btn btn-outline" onclick="closeCustSheet()">Cancel</button>
+    <button class="btn btn-success" onclick="saveCustomer()">✅ Save</button>
+  </div>
+</div>
+<div id="custSheetOverlay" class="sheet-overlay" onclick="closeCustSheet()" style="display:none"></div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadSummary() {
+  try {
+    const res = await fetch('/udhari/summary');
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.total_due > 0) {
+      document.getElementById('udhariSummaryBanner').style.display = 'flex';
+      document.getElementById('totalDue').textContent = '₹' + data.total_due.toFixed(0);
+    }
+  } catch(e) {}
+}
+
+function filterCustomers() {
+  const q = document.getElementById('searchCust').value.toLowerCase();
+  document.querySelectorAll('.customer-card').forEach(card => {
+    const name = card.dataset.name || '';
+    const phone = card.dataset.phone || '';
+    card.style.display = (name.includes(q) || phone.includes(q)) ? '' : 'none';
+  });
+}
+
+let showingUdhariOnly = false;
+function filterUdhari() {
+  showingUdhariOnly = !showingUdhariOnly;
+  document.querySelectorAll('.customer-card').forEach(card => {
+    card.style.display = showingUdhariOnly ? (parseFloat(card.dataset.balance) > 0 ? '' : 'none') : '';
+  });
+}
+
+function showAddCustomer() {
+  document.getElementById('addCustModal').style.display = 'block';
+  document.getElementById('custSheetOverlay').style.display = 'block';
+  setTimeout(() => document.getElementById('newCustName').focus(), 100);
+}
+
+function closeCustSheet() {
+  document.getElementById('addCustModal').style.display = 'none';
+  document.getElementById('custSheetOverlay').style.display = 'none';
+}
+
+async function saveCustomer() {
+  const name = document.getElementById('newCustName').value.trim();
+  if (!name) { alert('Name is required!'); return; }
+  const data = {
+    name,
+    phone: document.getElementById('newCustPhone').value.trim(),
+    address: document.getElementById('newCustAddr').value.trim(),
+    notes: document.getElementById('newCustNotes').value.trim()
+  };
+  const res = await fetch('/customers/add', {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)
+  });
+  const result = await res.json();
+  if (result.success) { location.reload(); }
+}
+
+async function deleteCustomer(id, name) {
+  if (!confirm(`Delete "${name}"? All their udhari entries will also be removed.`)) return;
+  const res = await fetch('/customers/delete/' + id, { method: 'POST' });
+  const result = await res.json();
+  if (result.success) { location.reload(); }
+}
+
+loadSummary();
+</script>
+{% endblock %}
