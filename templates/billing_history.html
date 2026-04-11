@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block title %}History - FoodNShop{% endblock %}
+{% block page_title %}📊 History{% endblock %}
+
+{% block content %}
+<div class="page-content">
+  {% set total_revenue = bills|sum(attribute='total') %}
+  <div class="stats-grid" style="grid-template-columns:1fr 1fr">
+    <div class="stat-card stat-green">
+      <div class="stat-icon">💰</div>
+      <div class="stat-num">₹{{ "%.0f"|format(total_revenue) }}</div>
+      <div class="stat-label">Total Revenue</div>
+    </div>
+    <div class="stat-card stat-blue">
+      <div class="stat-icon">🧾</div>
+      <div class="stat-num">{{ bills|length }}</div>
+      <div class="stat-label">Total Bills</div>
+    </div>
+  </div>
+
+  <div class="section-card">
+    <h3>📋 Recent Bills (Last 50)</h3>
+    {% if bills %}
+      {% for b in bills %}
+      <a href="{{ url_for('view_bill', bill_id=b.id) }}" class="history-row">
+        <div>
+          <div class="hist-name">{{ b.customer_name }}</div>
+          <div class="hist-date">{{ b.paid_at.strftime('%d/%m/%Y %I:%M %p') }}</div>
+        </div>
+        <div class="hist-amount">₹{{ "%.0f"|format(b.total) }}</div>
+      </a>
+      {% endfor %}
+    {% else %}
+      <div class="empty-state">📊 No bills found yet</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

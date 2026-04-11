@@ -1,0 +1,118 @@
+{% extends 'base.html' %}
+{% block title %}Tables - FoodNShop{% endblock %}
+{% block page_title %}🪑 Tables{% endblock %}
+
+{% block content %}
+<div class="page-content">
+  <div class="page-actions">
+    <button class="btn btn-primary" onclick="openAddTable()">+ Add Table</button>
+  </div>
+
+  <div class="table-legend">
+    <span class="legend-dot available"></span> Available
+    <span class="legend-dot occupied"></span> Occupied
+    <span class="legend-dot reserved"></span> Reserved
+  </div>
+
+  <div class="table-floor" id="tableFloor">
+    {% if tables %}
+      {% for t in tables %}
+      <div class="floor-table status-{{ t.status }}" id="ft-{{ t.id }}" onclick="openTableActions({{ t.id }}, '{{ t.table_number }}', '{{ t.status }}', {{ t.capacity }})">
+        <div class="ft-num">T{{ t.table_number }}</div>
+        <div class="ft-cap">{{ t.capacity }} 👤</div>
+        <div class="ft-status">{{ t.status|capitalize }}</div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty-state">🪑 No tables yet<br><small>Click + Add Table to get started</small></div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Add Table Sheet -->
+<div id="addTableModal" class="sheet-modal" style="display:none">
+  <div class="sheet-handle"></div>
+  <h3>🪑 Add New Table</h3>
+  <div class="form-row">
+    <div class="form-group">
+      <label>Table नंबर</label>
+      <input type="text" id="tNum" placeholder="उदा: 1, A1, VIP">
+    </div>
+    <div class="form-group">
+      <label>Capacity (जागा)</label>
+      <input type="number" id="tCap" placeholder="4" min="1" max="20" value="4">
+    </div>
+  </div>
+  <div class="sheet-actions">
+    <button class="btn btn-outline" onclick="closeSheet()">Cancel</button>
+    <button class="btn btn-primary" onclick="saveTable()">Add</button>
+  </div>
+</div>
+
+<!-- Table Actions Sheet -->
+<div id="tableActionsModal" class="sheet-modal" style="display:none">
+  <div class="sheet-handle"></div>
+  <h3 id="taTitle">Table Actions</h3>
+  <div class="status-grid">
+    <button class="status-btn available" onclick="setStatus('available')">✅ Available</button>
+    <button class="status-btn occupied" onclick="setStatus('occupied')">🔴 Occupied</button>
+    <button class="status-btn reserved" onclick="setStatus('reserved')">🟡 Reserved</button>
+  </div>
+  <div class="sheet-actions" style="margin-top:1rem">
+    <button class="btn btn-danger" onclick="deleteTable()">🗑️ Delete Table</button>
+    <button class="btn btn-outline" onclick="closeSheet()">Cancel</button>
+  </div>
+</div>
+<div id="sheetOverlay" class="sheet-overlay" onclick="closeSheet()" style="display:none"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let activeTableId = null;
+
+function openAddTable() {
+  document.getElementById('addTableModal').style.display = 'block';
+  document.getElementById('sheetOverlay').style.display = 'block';
+}
+
+function openTableActions(id, num, status, cap) {
+  activeTableId = id;
+  document.getElementById('taTitle').textContent = `Table ${num} (${cap} seats) - ${status}`;
+  document.getElementById('tableActionsModal').style.display = 'block';
+  document.getElementById('sheetOverlay').style.display = 'block';
+}
+
+function closeSheet() {
+  document.querySelectorAll('.sheet-modal').forEach(m => m.style.display = 'none');
+  document.getElementById('sheetOverlay').style.display = 'none';
+}
+
+async function saveTable() {
+  const num = document.getElementById('tNum').value;
+  const cap = document.getElementById('tCap').value;
+  if (!num) { alert('Table number द्या!'); return; }
+  await fetch('/tables/add', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({table_number: num, capacity: cap})
+  });
+  closeSheet();
+  location.reload();
+}
+
+async function setStatus(status) {
+  await fetch(`/tables/status/${activeTableId}`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({status})
+  });
+  closeSheet();
+  location.reload();
+}
+
+async function deleteTable() {
+  if (!confirm('Delete this table?')) return;
+  await fetch(`/tables/delete/${activeTableId}`, {method: 'POST'});
+  closeSheet();
+  location.reload();
+}
+</script>
+{% endblock %}
