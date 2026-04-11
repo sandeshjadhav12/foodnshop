@@ -6,7 +6,7 @@ import os
 
 app = Flask(__name__)
 app.secret_key = 'foodnshop_secret_key_2024'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///foodnshop.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////tmp/foodnshop.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
